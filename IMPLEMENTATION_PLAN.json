@@ -1,0 +1,202 @@
+{
+  "project": "ai-sales-agent",
+  "company": "NovaFlow AI",
+  "version": "1.0.0",
+  "created": "2026-08-15",
+  "goal": "AI Sales Agent, который ведёт входящие обращения по воронке: intent detection -> RAG -> qualification -> lead scoring -> CRM -> booking встречи",
+  "definition_of_done": "Пользователь пишет 'У нас интернет-магазин, около 2000 обращений в месяц, хотим автоматически квалифицировать клиентов' и система самостоятельного проходит путь до meeting_booked, все действия видны в demo dashboard, docker compose up поднимает всё целиком",
+  "phases": [
+    {
+      "id": 1,
+      "name": "Architecture design",
+      "status": "pending",
+      "tasks": [
+        {"id": "1.1", "task": "Зафиксировать компоненты, data flow, модели данных, tools, agent state, sequence", "artifact": "docs/ARCHITECTURE.md", "done": false},
+        {"id": "1.2", "task": "Зафиксировать JSON-план реализации", "artifact": "IMPLEMENTATION_PLAN.json", "done": false},
+        {"id": "1.3", "task": "Определить схему структурированного решения агента (AgentDecision)", "artifact": "docs/ARCHITECTURE.md#agent-state", "done": false}
+      ],
+      "verification": "Ревью архитектуры: каждый компонент имеет причину существования, все 25 функций из ТЗ покрыты"
+    },
+    {
+      "id": 2,
+      "name": "Project scaffold",
+      "status": "pending",
+      "depends_on": [1],
+      "tasks": [
+        {"id": "2.1", "task": "Создать структуру каталогов app/, knowledge_base/, tests/, frontend/, config/, docs/", "artifact": "tree", "done": false},
+        {"id": "2.2", "task": "core/config.py — pydantic-settings, все переменные окружения", "artifact": "app/core/config.py", "done": false},
+        {"id": "2.3", "task": "core/logging.py — structlog JSON-логи с context (conversation_id, lead_id)", "artifact": "app/core/logging.py", "done": false},
+        {"id": "2.4", "task": "requirements.txt, .env.example, .gitignore", "artifact": "root files", "done": false}
+      ],
+      "verification": "python -c 'from app.core.config import settings' без ошибок"
+    },
+    {
+      "id": 3,
+      "name": "Database models & migrations",
+      "status": "pending",
+      "depends_on": [2],
+      "tasks": [
+        {"id": "3.1", "task": "SQLAlchemy 2.0 async models: Lead, LeadEvent, Conversation, Message, Meeting, ToolCall", "artifact": "app/models/", "done": false},
+        {"id": "3.2", "task": "Alembic setup + начальная миграция", "artifact": "alembic/", "done": false},
+        {"id": "3.3", "task": "Схема стадий лида (state machine) + валидация переходов", "artifact": "app/agent/state.py", "done": false}
+      ],
+      "verification": "alembic upgrade head создаёт все таблицы в PostgreSQL"
+    },
+    {
+      "id": 4,
+      "name": "Mock CRM service",
+      "status": "pending",
+      "depends_on": [3],
+      "tasks": [
+        {"id": "4.1", "task": "CRMService: create_lead, update_lead, get_lead, append_event (audit trail в lead_events)", "artifact": "app/services/crm.py", "done": false},
+        {"id": "4.2", "task": "Дедупликация лидов (по email/phone/company)", "artifact": "app/services/crm.py", "done": false},
+        {"id": "4.3", "task": "Обработка ошибок БД с деградацией диалога", "artifact": "app/services/crm.py", "done": false}
+      ],
+      "verification": "Unit-тесты: create -> update -> events history; duplicate lead не создаёт копию"
+    },
+    {
+      "id": 5,
+      "name": "Knowledge Base & RAG",
+      "status": "pending",
+      "depends_on": [2],
+      "tasks": [
+        {"id": "5.1", "task": "Написать knowledge_base: company.md, services.md, pricing.md, faq.md, cases.md, process.md, technical_capabilities.md (демо-компания NovaFlow AI)", "artifact": "knowledge_base/", "done": false},
+        {"id": "5.2", "task": "Chunking + embeddings слой (OpenAI embeddings)", "artifact": "app/rag/embeddings.py, app/rag/ingestion.py", "done": false},
+        {"id": "5.3", "task": "VectorStore abstraction: Qdrant (prod) + ChromaDB (local fallback), metadata (source, category, service)", "artifact": "app/rag/retrieval.py", "done": false},
+        {"id": "5.4", "task": "CLI-скрипт ingestion: populate vector db из markdown", "artifact": "app/rag/ingestion.py", "done": false}
+      ],
+      "verification": "Поиск 'сколько стоит AI sales agent' возвращает чанки из pricing.md с score > 0.7"
+    },
+    {
+      "id": 6,
+      "name": "Tools layer",
+      "status": "pending",
+      "depends_on": [4, 5],
+      "tasks": [
+        {"id": "6.1", "task": "Tool registry: базовый класс Tool с Pydantic input/output схемами + исполнение + логирование", "artifact": "app/tools/base.py", "done": false},
+        {"id": "6.2", "task": "search_knowledge_base tool", "artifact": "app/tools/knowledge.py", "done": false},
+        {"id": "6.3", "task": "create_lead, update_lead, get_lead tools", "artifact": "app/tools/crm.py", "done": false},
+        {"id": "6.4", "task": "calculate_lead_score tool + scoring engine на config/scoring.yaml", "artifact": "app/tools/scoring.py, config/scoring.yaml", "done": false},
+        {"id": "6.5", "task": "get_available_slots, book_meeting tools (mock calendar)", "artifact": "app/tools/calendar.py, app/services/calendar.py", "done": false},
+        {"id": "6.6", "task": "save_memory tool (long-term memory decision)", "artifact": "app/tools/memory.py", "done": false},
+        {"id": "6.7", "task": "Обработка: invalid tool arguments, timeout, unknown tool", "artifact": "app/tools/base.py", "done": false}
+      ],
+      "verification": "Unit-тесты каждого tool: happy path + invalid args + сервис недоступен"
+    },
+    {
+      "id": 7,
+      "name": "LLM structured output",
+      "status": "pending",
+      "depends_on": [2],
+      "tasks": [
+        {"id": "7.1", "task": "LLMProvider protocol + OpenAIProvider + AnthropicProvider, выбор через env", "artifact": "app/services/llm.py", "done": false},
+        {"id": "7.2", "task": "AgentDecision Pydantic-модель (intent, stage, needs_rag, tool, tool_arguments, memory_updates, missing_fields, next_best_action, should_offer_meeting, response)", "artifact": "app/agent/schemas.py", "done": false},
+        {"id": "7.3", "task": "Гарантированный structured output: JSON schema enforcement + retry/repair при невалидном JSON", "artifact": "app/services/llm.py", "done": false},
+        {"id": "7.4", "task": "Fallback при LLM unavailable (degraded mode)", "artifact": "app/services/llm.py", "done": false}
+      ],
+      "verification": "Тест: mock LLM возвращает битый JSON -> repair или structured error, не исключение"
+    },
+    {
+      "id": 8,
+      "name": "Agent loop",
+      "status": "pending",
+      "depends_on": [6, 7],
+      "tasks": [
+        {"id": "8.1", "task": "System prompt (production-quality, все правила из ТЗ) отдельно в prompts.py", "artifact": "app/agent/prompts.py", "done": false},
+        {"id": "8.2", "task": "Двухшаговый цикл: decision call -> [RAG] -> [tool] -> response call", "artifact": "app/agent/agent.py", "done": false},
+        {"id": "8.3", "task": "Next best action логика + приоритизация missing fields (один вопрос за сообщение)", "artifact": "app/agent/router.py", "done": false},
+        {"id": "8.4", "task": "Автоматические переходы стадий funnel + события", "artifact": "app/agent/state.py", "done": false},
+        {"id": "8.5", "task": "Обработка изменения клиентом ранее предоставленных данных", "artifact": "app/agent/agent.py", "done": false},
+        {"id": "8.6", "task": "Полный flow: offer_meeting -> slots -> выбор -> book -> stage=meeting_booked", "artifact": "app/agent/agent.py", "done": false}
+      ],
+      "verification": "Scripted demo conversation (стоматология из ТЗ 32) проходит до meeting_booked end-to-end"
+    },
+    {
+      "id": 9,
+      "name": "Memory",
+      "status": "pending",
+      "depends_on": [8],
+      "tasks": [
+        {"id": "9.1", "task": "Short-term: Redis ring buffer последних N сообщений (app/memory/short_term.py)", "artifact": "app/memory/short_term.py", "done": false},
+        {"id": "9.2", "task": "Long-term: профиль лида в PG, обновление через memory_updates из decision", "artifact": "app/memory/long_term.py", "done": false},
+        {"id": "9.3", "task": "Memory decision logic: сохранять значимое ('используем HubSpot'), не сохранять мусор ('окей')", "artifact": "app/agent/prompts.py + agent.py", "done": false}
+      ],
+      "verification": "Тест: агент не спрашивает повторно информацию, которую клиент уже давал"
+    },
+    {
+      "id": 10,
+      "name": "Calendar integration",
+      "status": "pending",
+      "depends_on": [6],
+      "tasks": [
+        {"id": "10.1", "task": "CalendarService: генерация слотов по таймзоне/датам/длительности, учёт занятых (meetings table)", "artifact": "app/services/calendar.py", "done": false},
+        {"id": "10.2", "task": "book_meeting с защитой от duplicate booking, генерация meeting_url", "artifact": "app/services/calendar.py", "done": false}
+      ],
+      "verification": "Тест: слоты не пересекаются, повторное бронирование того же слота отклоняется"
+    },
+    {
+      "id": 11,
+      "name": "FastAPI backend",
+      "status": "pending",
+      "depends_on": [8],
+      "tasks": [
+        {"id": "11.1", "task": "POST /chat (+ agent_state в ответе для dashboard)", "artifact": "app/api/chat.py", "done": false},
+        {"id": "11.2", "task": "GET /leads, GET /leads/{id}, PATCH /leads/{id}, GET /leads/{id}/events", "artifact": "app/api/leads.py", "done": false},
+        {"id": "11.3", "task": "GET /conversations/{id}, GET /health (статусы зависимостей)", "artifact": "app/api/", "done": false},
+        {"id": "11.4", "task": "Глобальный error handler, валидация Pydantic, логирование request_id", "artifact": "app/main.py", "done": false}
+      ],
+      "verification": "OpenAPI docs /docs рендерятся; все endpoints отвечают по контракту ТЗ 29"
+    },
+    {
+      "id": 12,
+      "name": "Frontend demo",
+      "status": "pending",
+      "depends_on": [11],
+      "tasks": [
+        {"id": "12.1", "task": "Экран /: слева Client Chat, справа Agent State (intent, stage, fields, score, next_best_action, tool calls)", "artifact": "frontend/index.html", "done": false},
+        {"id": "12.2", "task": "Страница /leads: таблица лидов + detail view (timeline событий)", "artifact": "frontend/leads.html", "done": false},
+        {"id": "12.3", "task": "FastAPI static mount + связка с API", "artifact": "app/main.py", "done": false}
+      ],
+      "verification": "В браузере виден полный demo scenario: сообщения агента + внутренние действия в реальном времени"
+    },
+    {
+      "id": 13,
+      "name": "Tests & evaluation",
+      "status": "pending",
+      "depends_on": [8, 11],
+      "tasks": [
+        {"id": "13.1", "task": "Unit: intent detection, scoring, state machine, memory decision, duplicate handling", "artifact": "tests/unit/", "done": false},
+        {"id": "13.2", "task": "Integration: RAG retrieval, tool calling, meeting booking, API endpoints (mock LLM)", "artifact": "tests/integration/", "done": false},
+        {"id": "13.3", "task": "Scripted conversations: 3+ сценария (qualified lead, not_interested, pricing-only вопрос) для automatic evaluation", "artifact": "tests/eval/scenarios/", "done": false},
+        {"id": "13.4", "task": "Ошибки: LLM down, CRM down, RAG down, calendar down — диалог не ломается", "artifact": "tests/integration/test_resilience.py", "done": false}
+      ],
+      "verification": "pytest green, покрытие ключевой бизнес-логики > 80%"
+    },
+    {
+      "id": 14,
+      "name": "Docker",
+      "status": "pending",
+      "depends_on": [11],
+      "tasks": [
+        {"id": "14.1", "task": "Dockerfile backend (multi-stage, non-root)", "artifact": "Dockerfile", "done": false},
+        {"id": "14.2", "task": "docker-compose.yml: backend, postgres, redis, qdrant + healthchecks + volumes + auto-migrate + RAG ingestion", "artifact": "docker-compose.yml", "done": false}
+      ],
+      "verification": "Чистая машина: docker compose up -> /health зелёный -> demo scenario работает"
+    },
+    {
+      "id": 15,
+      "name": "README & portfolio polish",
+      "status": "pending",
+      "depends_on": [14],
+      "tasks": [
+        {"id": "15.1", "task": "README: what/business problem/architecture (mermaid)/workflow/tech stack/tools/RAG/memory/scoring/installation/env/demo conversation/API/future improvements", "artifact": "README.md", "done": false},
+        {"id": "15.2", "task": "Скриншоты demo dashboard в README", "artifact": "docs/screenshots/", "done": false},
+        {"id": "15.3", "task": "Секция 'Why this is an agent, not a chatbot' с ответами из ТЗ 43", "artifact": "README.md", "done": false}
+      ],
+      "verification": "Новый пользователь по README поднимает проект и воспроизводит demo scenario без помощи автора"
+    }
+  ],
+  "status_values": ["pending", "in_progress", "done", "blocked"],
+  "critical_path": [1, 2, 3, 4, 5, 6, 7, 8, 11, 12, 13, 14, 15],
+  "parallelizable": [[4, 5], [7, 4, 5], [9, 10], [13, 14]]
+}
