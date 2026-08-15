@@ -155,3 +155,48 @@ class ScoringEngine:
         if score <= thresholds["potential"]:
             return "potential"
         return "qualified"
+
+
+# ---------------------------------------------------------------------------
+# Tool wrapper
+# ---------------------------------------------------------------------------
+from pydantic import BaseModel as _BaseModel, Field  # noqa: E402
+
+from app.services.crm import CRMService  # noqa: E402
+from app.tools.base import Tool, ToolContext, register_tool  # noqa: E402
+
+
+class CalculateLeadScoreInput(_BaseModel):
+    lead_id: str = Field(...)
+
+
+class CalculateLeadScoreTool(Tool):
+    name = "calculate_lead_score"
+    description = "Calculate or recalculate the lead score and quality."
+    input_schema = CalculateLeadScoreInput
+
+    async def execute(self, context: ToolContext, arguments: CalculateLeadScoreInput) -> dict[str, Any]:
+        lead = await CRMService.get_lead(context.session, arguments.lead_id)
+        if lead is None:
+            return {"success": False, "error": f"Lead {arguments.lead_id} not found"}
+
+        engine = ScoringEngine()
+        result = engine.score(lead)
+        await CRMService.update_lead(
+            context.session,
+            lead.id,
+            {
+                "lead_score": result["lead_score"],
+                "lead_quality": result["lead_quality"],
+            },
+        )
+        await CRMService.append_event(
+            context.session,
+            lead.id,
+            "score_changed",
+            result,
+        )
+        return {"success": True, **result}
+
+
+register_tool(CalculateLeadScoreTool())
