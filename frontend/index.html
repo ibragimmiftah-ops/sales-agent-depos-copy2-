@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NovaFlow AI Sales Agent</title>
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+  <header>
+    <div class="brand">NovaFlow AI <span class="badge">AI Sales Agent</span></div>
+    <nav>
+      <a href="/">Chat</a>
+      <a href="/leads.html">Leads</a>
+      <a href="/docs">API Docs</a>
+    </nav>
+  </header>
+
+  <main class="split">
+    <section class="panel chat-panel">
+      <h2>Client Chat</h2>
+      <div id="chat-history" class="chat-history"></div>
+      <form id="chat-form" class="chat-form">
+        <input type="text" id="message-input" placeholder="Напишите сообщение..." required autocomplete="off">
+        <button type="submit">Send</button>
+      </form>
+    </section>
+
+    <section class="panel state-panel">
+      <h2>Agent State</h2>
+      <div id="agent-state" class="state-box"></div>
+      <h3>Last Tool Calls</h3>
+      <div id="tool-calls" class="state-box"></div>
+    </section>
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

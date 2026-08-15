@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Leads Dashboard | NovaFlow AI</title>
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+  <header>
+    <div class="brand">NovaFlow AI <span class="badge">Leads</span></div>
+    <nav>
+      <a href="/">Chat</a>
+      <a href="/leads.html">Leads</a>
+    </nav>
+  </header>
+
+  <main class="split">
+    <section class="panel">
+      <h2>Leads</h2>
+      <table id="leads-table" class="leads-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Company</th>
+            <th>Industry</th>
+            <th>Score</th>
+            <th>Status</th>
+            <th>Created</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <section class="panel">
+      <h2>Lead Detail</h2>
+      <div id="lead-detail" class="state-box">Select a lead to view details.</div>
+      <h3>Events</h3>
+      <div id="lead-events" class="state-box"></div>
+    </section>
+  </main>
+
+  <script src="/static/leads.js"></script>
+</body>
+</html>
