@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+from enum import Enum
 from typing import Any
 
 from sqlalchemy import select
@@ -12,6 +14,15 @@ from app.core.logging import get_logger
 from app.models import Conversation, Lead, LeadEvent, LeadStatus
 
 logger = get_logger(__name__)
+
+
+def _serialize_event_value(value: Any) -> Any:
+    """Make a value JSON-serializable for event payloads."""
+    if isinstance(value, datetime):
+        return value.isoformat()
+    if isinstance(value, Enum):
+        return value.value
+    return value
 
 
 class CRMService:
@@ -140,7 +151,10 @@ class CRMService:
             old = getattr(lead, key)
             if old != value:
                 setattr(lead, key, value)
-                changed[key] = {"old": old, "new": value}
+                changed[key] = {
+                    "old": _serialize_event_value(old),
+                    "new": _serialize_event_value(value),
+                }
 
         if changed:
             await cls.append_event(

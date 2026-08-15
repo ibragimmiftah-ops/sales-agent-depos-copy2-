@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -92,11 +93,14 @@ class SalesAgent:
         # ------------------------------------------------------------------
         # 2. Apply memory updates (long-term memory)
         # ------------------------------------------------------------------
-        if decision.memory_updates:
-            normalized = self._normalize_memory_updates(decision.memory_updates)
-            if normalized:
-                await CRMService.update_lead(session, lead.id, normalized)
-                logger.info("memory_updates_applied", lead_id=lead.id, fields=list(normalized.keys()))
+        normalized = (
+            self._normalize_memory_updates(decision.memory_updates)
+            if decision.memory_updates
+            else {}
+        )
+        if normalized:
+            await CRMService.update_lead(session, lead.id, normalized)
+            logger.info("memory_updates_applied", lead_id=lead.id, fields=list(normalized.keys()))
 
         # ------------------------------------------------------------------
         # 3. Stage transition
@@ -123,8 +127,12 @@ class SalesAgent:
         # 4. Execute tool if requested
         # ------------------------------------------------------------------
         if decision.tool and decision.tool in TOOLS:
-            tool_args = self._inject_lead_id(
-                decision.tool, decision.tool_arguments, lead
+            tool_args = self._prepare_tool_arguments(
+                decision.tool,
+                decision.tool_arguments,
+                lead,
+                memory_updates=normalized,
+                user_message=user_message,
             )
             self.tool_context.session = session
             try:
@@ -291,8 +299,15 @@ class SalesAgent:
         return normalized
 
     @staticmethod
-    def _inject_lead_id(tool: str, arguments: dict[str, Any], lead: Lead) -> dict[str, Any]:
-        """Ensure tool arguments contain lead_id when required."""
+    def _prepare_tool_arguments(
+        tool: str,
+        arguments: dict[str, Any],
+        lead: Lead,
+        *,
+        memory_updates: dict[str, Any],
+        user_message: str,
+    ) -> dict[str, Any]:
+        """Ensure tool arguments contain lead_id, fields, and defaults."""
         args = dict(arguments)
         lead_id_tools = {
             "update_lead",
@@ -303,6 +318,9 @@ class SalesAgent:
         }
         if tool in lead_id_tools and "lead_id" not in args:
             args["lead_id"] = lead.id
+
+        if tool in ("update_lead", "save_memory") and "fields" not in args:
+            args["fields"] = memory_updates
 
         if tool == "get_available_slots":
             if "date_from" not in args:
@@ -319,6 +337,13 @@ class SalesAgent:
                 args["timezone"] = settings.DEFAULT_TIMEZONE
 
         if tool == "book_meeting":
+            if "datetime" not in args:
+                match = re.search(
+                    r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?(?:[+-]\d{2}:\d{2})?",
+                    user_message,
+                )
+                if match:
+                    args["datetime"] = match.group(0)
             if "duration_minutes" not in args:
                 args["duration_minutes"] = settings.SLOT_DURATION_MINUTES
             if "timezone" not in args:
@@ -331,5 +356,11 @@ class SalesAgent:
         return args
 
 
+_sales_agent: SalesAgent | None = None
+
+
 def get_sales_agent() -> SalesAgent:
-    return SalesAgent()
+    global _sales_agent
+    if _sales_agent is None:
+        _sales_agent = SalesAgent()
+    return _sales_agent

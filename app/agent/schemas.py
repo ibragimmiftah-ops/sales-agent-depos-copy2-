@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 INTENTS = [
     "greeting",
@@ -133,8 +133,7 @@ class AgentState(BaseModel):
     last_tool_calls: list[dict[str, Any]]
     response: str
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ToolCallRecord(BaseModel):

@@ -221,9 +221,9 @@ class MockLLMProvider(LLMProvider):
             validated = schema.model_validate(decision)
             return validated.model_dump()
 
-        # Fallback keyword-based decision.
+        # Fallback keyword-based decision. Use the most recent user message.
         user_text = ""
-        for m in messages:
+        for m in reversed(messages):
             if m.get("role") == "user":
                 user_text = m.get("content", "")
                 break
@@ -235,32 +235,21 @@ class MockLLMProvider(LLMProvider):
         *,
         temperature: float | None = None,
     ) -> str:
-        # Return the response embedded in the last assistant/decision message if present.
+        # Extract the draft response injected by the agent into the system prompt.
+        marker = "Agent draft response:"
         for m in reversed(messages):
-            if m.get("role") == "assistant" and "response" in (m.get("content") or ""):
-                # Best-effort extraction not needed for tests.
-                return m.get("content", "")
+            content = m.get("content") or ""
+            if marker in content:
+                idx = content.index(marker) + len(marker)
+                draft = content[idx:].strip()
+                if draft:
+                    return draft
         return "Спасибо за информацию. Чем ещё могу помочь?"
 
     @staticmethod
     def _keyword_decision(user_text: str) -> dict[str, Any]:
         text = user_text.lower()
         from app.agent.schemas import NEXT_BEST_ACTIONS
-
-        if any(w in text for w in ["привет", "здравствуй", "hi", "hello"]):
-            return {
-                "intent": "greeting",
-                "stage": "engaged",
-                "needs_rag": False,
-                "tool": None,
-                "tool_arguments": {},
-                "memory_updates": {},
-                "missing_fields": ["business_problem"],
-                "lead_score_required": False,
-                "next_best_action": "ask_business_problem",
-                "should_offer_meeting": False,
-                "response": "Привет! Расскажите, какую задачу хотите решить с помощью AI-автоматизации?",
-            }
 
         if any(w in text for w in ["цена", "стоит", "pricing", "price", "сколько"]):
             return {
@@ -294,19 +283,38 @@ class MockLLMProvider(LLMProvider):
                 "response": "Понял. Откуда сейчас в основном приходят заявки — сайт, Telegram, WhatsApp или другие каналы?",
             }
 
+        if any(w in text for w in ["привет", "здравствуй", "hi", "hello"]):
+            return {
+                "intent": "greeting",
+                "stage": "engaged",
+                "needs_rag": False,
+                "tool": None,
+                "tool_arguments": {},
+                "memory_updates": {},
+                "missing_fields": ["business_problem"],
+                "lead_score_required": False,
+                "next_best_action": "ask_business_problem",
+                "should_offer_meeting": False,
+                "response": "Привет! Расскажите, какую задачу хотите решить с помощью AI-автоматизации?",
+            }
+
         if any(w in text for w in ["whatsapp", "telegram", "сайт", "email", "instagram", "звонки"]):
+            memory_updates: dict[str, Any] = {"channels": [user_text]}
+            digits = re.findall(r"\d+", text)
+            if digits:
+                memory_updates["monthly_leads"] = int(digits[0])
             return {
                 "intent": "qualification_answer",
                 "stage": "qualification",
                 "needs_rag": False,
                 "tool": "update_lead",
                 "tool_arguments": {},
-                "memory_updates": {"channels": [user_text]},
-                "missing_fields": ["monthly_leads"],
-                "lead_score_required": False,
-                "next_best_action": "ask_volume",
+                "memory_updates": memory_updates,
+                "missing_fields": ["current_software"] if digits else ["monthly_leads"],
+                "lead_score_required": bool(digits),
+                "next_best_action": "ask_current_software" if digits else "ask_volume",
                 "should_offer_meeting": False,
-                "response": "Понял. Примерно сколько входящих заявок вы получаете в месяц?",
+                "response": "Спасибо. А какую CRM или систему для учёта заявок используете сейчас?" if digits else "Понял. Примерно сколько входящих заявок вы получаете в месяц?",
             }
 
         if re.search(r"\d+", text) and any(w in text for w in ["в месяц", "месяц", "заявок", "обращен"]):
@@ -356,7 +364,7 @@ class MockLLMProvider(LLMProvider):
                 "response": "Понял. Принимаете ли вы финальное решение по такому проекту?",
             }
 
-        if any(w in text for w in ["да", "yes", "я принимаю", "owner", "руководитель", "директор", "основатель"]):
+        if any(w in text for w in ["я принимаю", "owner", "руководитель", "директор", "основатель", "decision maker"]):
             return {
                 "intent": "qualification_answer",
                 "stage": "qualified",
@@ -371,7 +379,7 @@ class MockLLMProvider(LLMProvider):
                 "response": "С вашим объёмом обращений такой сценарий имеет смысл детально посчитать. Могу предложить несколько свободных слотов для 30-минутного созвона.",
             }
 
-        if any(w in text for w in ["соглас", "давайте", "предлож", "слот", "встреч"]):
+        if any(w in text for w in ["давайте", "предлож", "слот", "встреч"]):
             return {
                 "intent": "meeting_request",
                 "stage": "meeting_proposed",
@@ -386,13 +394,17 @@ class MockLLMProvider(LLMProvider):
                 "response": "Вот несколько ближайших слотов. Выберите удобное время:",
             }
 
-        if re.search(r"\d{4}-\d{2}-\d{2}t\d{2}:\d{2}", text):
+        datetime_match = re.search(
+            r"\d{4}-\d{2}-\d{2}t\d{2}:\d{2}(?::\d{2})?(?:[+-]\d{2}:\d{2})?",
+            text,
+        )
+        if datetime_match:
             return {
                 "intent": "meeting_selection",
-                "stage": "meeting_booked",
+                "stage": "meeting_proposed",
                 "needs_rag": False,
                 "tool": "book_meeting",
-                "tool_arguments": {},
+                "tool_arguments": {"datetime": datetime_match.group(0).upper()},
                 "memory_updates": {},
                 "missing_fields": [],
                 "lead_score_required": False,

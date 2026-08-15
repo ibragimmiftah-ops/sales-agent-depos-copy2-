@@ -32,7 +32,10 @@ class Conversation(Base):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
-    lead: Mapped["Lead"] = relationship(back_populates="conversation")
+    lead: Mapped["Lead"] = relationship(
+        foreign_keys="[Conversation.lead_id]",
+        uselist=False,
+    )
     messages: Mapped[list["Message"]] = relationship(
         back_populates="conversation", cascade="all, delete-orphan"
     )

@@ -9,24 +9,37 @@ logger = get_logger(__name__)
 
 
 ALLOWED_TRANSITIONS: dict[str, set[str]] = {
+    # Forward progress may skip intermediate stages.
     LeadStatus.NEW.value: {
         LeadStatus.ENGAGED.value,
+        LeadStatus.QUALIFICATION.value,
+        LeadStatus.QUALIFIED.value,
+        LeadStatus.MEETING_PROPOSED.value,
+        LeadStatus.MEETING_BOOKED.value,
+        LeadStatus.UNQUALIFIED.value,
         LeadStatus.NOT_INTERESTED.value,
         LeadStatus.CLOSED.value,
     },
     LeadStatus.ENGAGED.value: {
         LeadStatus.QUALIFICATION.value,
+        LeadStatus.QUALIFIED.value,
+        LeadStatus.MEETING_PROPOSED.value,
+        LeadStatus.MEETING_BOOKED.value,
+        LeadStatus.UNQUALIFIED.value,
         LeadStatus.NOT_INTERESTED.value,
         LeadStatus.CLOSED.value,
     },
     LeadStatus.QUALIFICATION.value: {
         LeadStatus.QUALIFIED.value,
+        LeadStatus.MEETING_PROPOSED.value,
+        LeadStatus.MEETING_BOOKED.value,
         LeadStatus.UNQUALIFIED.value,
         LeadStatus.NOT_INTERESTED.value,
         LeadStatus.CLOSED.value,
     },
     LeadStatus.QUALIFIED.value: {
         LeadStatus.MEETING_PROPOSED.value,
+        LeadStatus.MEETING_BOOKED.value,
         LeadStatus.NOT_INTERESTED.value,
         LeadStatus.CLOSED.value,
     },
@@ -37,7 +50,11 @@ ALLOWED_TRANSITIONS: dict[str, set[str]] = {
         LeadStatus.CLOSED.value,
     },
     LeadStatus.MEETING_BOOKED.value: {LeadStatus.CLOSED.value},
-    LeadStatus.UNQUALIFIED.value: {LeadStatus.CLOSED.value, LeadStatus.QUALIFICATION.value},
+    LeadStatus.UNQUALIFIED.value: {
+        LeadStatus.QUALIFICATION.value,
+        LeadStatus.NOT_INTERESTED.value,
+        LeadStatus.CLOSED.value,
+    },
     LeadStatus.NOT_INTERESTED.value: {LeadStatus.CLOSED.value},
     LeadStatus.CLOSED.value: set(),
 }

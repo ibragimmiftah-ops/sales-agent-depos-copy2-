@@ -92,7 +92,10 @@ class Lead(Base):
         onupdate=lambda: datetime.now(timezone.utc),
     )
 
-    conversation: Mapped["Conversation"] = relationship(back_populates="lead")
+    conversation: Mapped["Conversation"] = relationship(
+        foreign_keys="[Lead.conversation_id]",
+        uselist=False,
+    )
     events: Mapped[list["LeadEvent"]] = relationship(
         back_populates="lead", cascade="all, delete-orphan"
     )
