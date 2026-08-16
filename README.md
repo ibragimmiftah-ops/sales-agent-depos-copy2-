@@ -228,13 +228,18 @@ alembic upgrade head
 | `DATABASE_URL` | `postgresql+asyncpg://postgres:postgres@localhost:5432/sales_agent` | Async SQLAlchemy DB URL |
 | `REDIS_URL` | `redis://localhost:6379/0` | Short-term memory |
 | `QDRANT_URL` | `http://localhost:6333` | Vector database |
+| `QDRANT_API_KEY` | — | Required for Qdrant in Docker Compose |
 | `QDRANT_COLLECTION_NAME` | `novaflow_kb` | Collection for RAG |
+| `SECRET_KEY` | — | JWT secret; must be at least 32 characters in production |
+| `ACCESS_TOKEN_EXPIRE_MINUTES` | `1440` | JWT lifetime |
 | `OPENAI_API_KEY` | — | Required when `LLM_PROVIDER=openai` |
 | `ANTHROPIC_API_KEY` | — | Required when `LLM_PROVIDER=anthropic` |
 | `LLM_PROVIDER` | `openai` | `openai` / `anthropic` / `mock` |
 | `LLM_MODEL` | `gpt-4o-mini` | Model name |
 | `EMBEDDING_PROVIDER` | `openai` | `openai` or `keyword` (fallback) |
 | `VECTOR_STORE_PROVIDER` | `qdrant` | `qdrant` or `chroma` |
+| `POSTGRES_PASSWORD` | — | Docker Compose PostgreSQL password |
+| `REDIS_PASSWORD` | — | Docker Compose Redis password |
 
 ---
 
@@ -252,9 +257,11 @@ Open:
 
 - Chat + Agent State dashboard: http://localhost:8000/
 - Leads dashboard: http://localhost:8000/leads.html
-- API docs: http://localhost:8000/docs
+- API docs: http://localhost:8000/api/docs (development only)
 
-To use a real LLM, set `LLM_PROVIDER=openai` and provide `OPENAI_API_KEY`.
+The public chat widget automatically requests an anonymous token from `/api/v1/auth/public-token`. The leads dashboard requires an operator/admin JWT from `/api/v1/auth/token`.
+
+To use a real LLM, set `LLM_PROVIDER=openai` and provide `OPENAI_API_KEY`. In production set a strong `SECRET_KEY` and never expose PostgreSQL/Redis/Qdrant ports.
 
 ---
 
@@ -262,21 +269,40 @@ To use a real LLM, set `LLM_PROVIDER=openai` and provide `OPENAI_API_KEY`.
 
 ```bash
 export OPENAI_API_KEY=sk-...
-export LLM_PROVIDER=openai
+export LLM_PROVIDER=mock
+export POSTGRES_PASSWORD=change-me
+export REDIS_PASSWORD=change-me
+export QDRANT_API_KEY=change-me
+export SECRET_KEY=change-me-in-production-min-32-characters-long
 docker compose up --build
 ```
 
-The compose stack starts PostgreSQL, Redis, Qdrant, and the FastAPI backend.
+The compose stack starts PostgreSQL, Redis, Qdrant, and the FastAPI backend on an internal network. Only the backend port `8000` is published; data stores are not reachable from the host.
 
 ---
 
 ## API
 
-### `POST /chat`
+All business endpoints are under `/api/v1` and require a Bearer JWT, except `/api/v1/chat` which also accepts an anonymous public token and `/health` which is open.
+
+### Authentication
 
 ```bash
-curl -X POST http://localhost:8000/chat \
+# Public chat token (anonymous, chat scope only)
+curl -X POST http://localhost:8000/api/v1/auth/public-token
+
+# Operator/admin token (requires seeded user)
+curl -X POST http://localhost:8000/api/v1/auth/token \
   -H "Content-Type: application/json" \
+  -d '{"email": "operator@example.com", "password": "..."}'
+```
+
+### `POST /api/v1/chat`
+
+```bash
+curl -X POST http://localhost:8000/api/v1/chat \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <token>" \
   -d '{"conversation_id": "conv_001", "message": "Хотим автоматизировать обработку заявок"}'
 ```
 
@@ -300,12 +326,12 @@ Response:
 
 ### Other endpoints
 
-- `GET /leads` — list leads
-- `GET /leads/{lead_id}` — lead detail
-- `PATCH /leads/{lead_id}` — update lead fields
-- `GET /leads/{lead_id}/events` — audit timeline
-- `GET /conversations/{conversation_id}` — message history
-- `GET /health` — health check
+- `GET /api/v1/leads` — list leads (operator/admin)
+- `GET /api/v1/leads/{lead_id}` — lead detail (operator/admin)
+- `PATCH /api/v1/leads/{lead_id}` — update allowed lead fields (operator/admin)
+- `GET /api/v1/leads/{lead_id}/events` — audit timeline (operator/admin)
+- `GET /api/v1/conversations/{conversation_id}` — message history (authenticated)
+- `GET /health` — liveness/readiness check
 
 ---
 
@@ -318,10 +344,13 @@ pytest -q
 The suite covers:
 
 - lead scoring logic;
-- state machine transitions;
-- CRM create/update/dedup with audit events;
-- calendar slot generation and double-booking protection;
-- the full dental-chain demo conversation via the API.
+- deterministic stage policy and meeting eligibility;
+- tenant-aware CRM create/update/dedup with audit events;
+- calendar slot generation, overlap rejection and double-booking protection;
+- the full dental-chain demo conversation via the API;
+- security regression: anonymous access, IDOR/tenant isolation, mass-assignment rejection, XSS and security headers.
+
+CI gates (`.github/workflows/ci.yml`) run ruff, mypy, Alembic check, pytest and bandit against PostgreSQL, Redis and Qdrant.
 
 ---
 

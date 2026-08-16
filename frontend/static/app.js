@@ -10,6 +10,21 @@ if (!conversationId) {
   localStorage.setItem('novaflow_conversation_id', conversationId);
 }
 
+async function getChatToken() {
+  let token = localStorage.getItem('novaflow_chat_token');
+  if (token) {
+    return token;
+  }
+  const res = await fetch('/api/v1/auth/public-token', { method: 'POST' });
+  if (!res.ok) {
+    return null;
+  }
+  const data = await res.json();
+  token = data.access_token;
+  localStorage.setItem('novaflow_chat_token', token);
+  return token;
+}
+
 function appendMessage(role, text) {
   const div = document.createElement('div');
   div.className = `message ${role}`;
@@ -19,11 +34,7 @@ function appendMessage(role, text) {
 }
 
 function renderState(state) {
-  const {
-    response,
-    last_tool_calls,
-    ...rest
-  } = state;
+  const { response, last_tool_calls, ...rest } = state;
   agentStateBox.textContent = JSON.stringify(rest, null, 2);
   toolCallsBox.textContent = JSON.stringify(last_tool_calls || [], null, 2);
 }
@@ -32,9 +43,15 @@ async function sendMessage(text) {
   appendMessage('user', text);
   messageInput.value = '';
 
-  const res = await fetch('/chat', {
+  const token = await getChatToken();
+  const headers = { 'Content-Type': 'application/json' };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const res = await fetch('/api/v1/chat', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify({ conversation_id: conversationId, message: text }),
   });
 

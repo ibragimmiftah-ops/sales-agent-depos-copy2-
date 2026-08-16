@@ -107,7 +107,7 @@ class QdrantVectorStore(VectorStore):
     async def search(
         self, query: str, category: str | None = None, top_k: int = 5
     ) -> list[SearchResult]:
-        from qdrant_client.models import Filter, FieldCondition, MatchValue
+        from qdrant_client.models import FieldCondition, Filter, MatchValue
 
         await self._ensure_collection()
         vector = (await self.embedder.embed([query]))[0]

@@ -2,9 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Any
-
-from app.core.config import settings
 from app.core.exceptions import RAGError
 from app.core.logging import get_logger
 from app.rag.vector_store import SearchResult, VectorStore, get_vector_store

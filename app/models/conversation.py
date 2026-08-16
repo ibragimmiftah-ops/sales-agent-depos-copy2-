@@ -6,10 +6,11 @@ import uuid
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, ForeignKey, JSON, String, Text
+from sqlalchemy import JSON, DateTime, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base
+from .mixins import TenantMixin
 
 if TYPE_CHECKING:
     from .lead import Lead
@@ -19,7 +20,7 @@ def _gen_conversation_id() -> str:
     return f"conv_{uuid.uuid4().hex[:12]}"
 
 
-class Conversation(Base):
+class Conversation(TenantMixin, Base):
     __tablename__ = "conversations"
 
     id: Mapped[str] = mapped_column(
@@ -32,16 +33,16 @@ class Conversation(Base):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
-    lead: Mapped["Lead"] = relationship(
+    lead: Mapped[Lead] = relationship(
         foreign_keys="[Conversation.lead_id]",
         uselist=False,
     )
-    messages: Mapped[list["Message"]] = relationship(
+    messages: Mapped[list[Message]] = relationship(
         back_populates="conversation", cascade="all, delete-orphan"
     )
 
 
-class Message(Base):
+class Message(TenantMixin, Base):
     __tablename__ = "messages"
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=_gen_conversation_id)
@@ -56,4 +57,4 @@ class Message(Base):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
-    conversation: Mapped["Conversation"] = relationship(back_populates="messages")
+    conversation: Mapped[Conversation] = relationship(back_populates="messages")

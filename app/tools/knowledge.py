@@ -19,7 +19,7 @@ class SearchKnowledgeBaseOutput(BaseModel):
     results: list[dict[str, Any]]
 
 
-class SearchKnowledgeBaseTool(Tool):
+class SearchKnowledgeBaseTool(Tool[SearchKnowledgeBaseInput]):
     name = "search_knowledge_base"
     description = "Search the company knowledge base for relevant information."
     input_schema = SearchKnowledgeBaseInput

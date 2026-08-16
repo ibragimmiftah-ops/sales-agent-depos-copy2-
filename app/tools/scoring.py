@@ -6,10 +6,14 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+from pydantic import BaseModel as _BaseModel
+from pydantic import Field
 
 from app.core.config import settings
 from app.core.logging import get_logger
 from app.models import Lead
+from app.services.crm import CRMService
+from app.tools.base import Tool, ToolContext, register_tool
 
 logger = get_logger(__name__)
 
@@ -160,23 +164,24 @@ class ScoringEngine:
 # ---------------------------------------------------------------------------
 # Tool wrapper
 # ---------------------------------------------------------------------------
-from pydantic import BaseModel as _BaseModel, Field  # noqa: E402
-
-from app.services.crm import CRMService  # noqa: E402
-from app.tools.base import Tool, ToolContext, register_tool  # noqa: E402
 
 
 class CalculateLeadScoreInput(_BaseModel):
     lead_id: str = Field(...)
+    tenant_id: str = Field(...)
 
 
-class CalculateLeadScoreTool(Tool):
+class CalculateLeadScoreTool(Tool[CalculateLeadScoreInput]):
     name = "calculate_lead_score"
     description = "Calculate or recalculate the lead score and quality."
     input_schema = CalculateLeadScoreInput
 
     async def execute(self, context: ToolContext, arguments: CalculateLeadScoreInput) -> dict[str, Any]:
-        lead = await CRMService.get_lead(context.session, arguments.lead_id)
+        if arguments.tenant_id != context.principal.tenant_id:
+            return {"success": False, "error": "Tenant mismatch"}
+        lead = await CRMService.get_lead(
+            context.session, arguments.lead_id, tenant_id=context.principal.tenant_id
+        )
         if lead is None:
             return {"success": False, "error": f"Lead {arguments.lead_id} not found"}
 
@@ -185,16 +190,19 @@ class CalculateLeadScoreTool(Tool):
         await CRMService.update_lead(
             context.session,
             lead.id,
-            {
+            tenant_id=context.principal.tenant_id,
+            fields={
                 "lead_score": result["lead_score"],
                 "lead_quality": result["lead_quality"],
             },
+            allowed_fields={"lead_score", "lead_quality"},
         )
         await CRMService.append_event(
             context.session,
             lead.id,
-            "score_changed",
-            result,
+            tenant_id=context.principal.tenant_id,
+            event_type="score_changed",
+            payload=result,
         )
         return {"success": True, **result}
 

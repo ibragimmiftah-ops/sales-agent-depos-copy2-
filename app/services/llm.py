@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import re
 from abc import ABC, abstractmethod
-from typing import Any, Type
+from typing import Any
 
 from pydantic import BaseModel
 
@@ -23,7 +23,7 @@ class LLMProvider(ABC):
     async def complete_structured(
         self,
         messages: list[dict[str, str]],
-        schema: Type[BaseModel],
+        schema: type[BaseModel],
         *,
         temperature: float | None = None,
     ) -> dict[str, Any]:
@@ -59,7 +59,7 @@ class OpenAIProvider(LLMProvider):
     async def complete_structured(
         self,
         messages: list[dict[str, str]],
-        schema: Type[BaseModel],
+        schema: type[BaseModel],
         *,
         temperature: float | None = None,
     ) -> dict[str, Any]:
@@ -144,7 +144,7 @@ class AnthropicProvider(LLMProvider):
     async def complete_structured(
         self,
         messages: list[dict[str, str]],
-        schema: Type[BaseModel],
+        schema: type[BaseModel],
         *,
         temperature: float | None = None,
     ) -> dict[str, Any]:
@@ -211,7 +211,7 @@ class MockLLMProvider(LLMProvider):
     async def complete_structured(
         self,
         messages: list[dict[str, str]],
-        schema: Type[BaseModel],
+        schema: type[BaseModel],
         *,
         temperature: float | None = None,
     ) -> dict[str, Any]:
@@ -249,7 +249,9 @@ class MockLLMProvider(LLMProvider):
     @staticmethod
     def _keyword_decision(user_text: str) -> dict[str, Any]:
         text = user_text.lower()
-        from app.agent.schemas import NEXT_BEST_ACTIONS
+
+        def _mu(field: str, value: Any) -> list[dict[str, Any]]:
+            return [{"field": field, "value": value}]
 
         if any(w in text for w in ["цена", "стоит", "pricing", "price", "сколько"]):
             return {
@@ -260,7 +262,7 @@ class MockLLMProvider(LLMProvider):
                 "rag_category": "pricing",
                 "tool": None,
                 "tool_arguments": {},
-                "memory_updates": {},
+                "memory_updates": [],
                 "missing_fields": ["business_problem"],
                 "lead_score_required": False,
                 "next_best_action": "ask_business_problem",
@@ -275,7 +277,7 @@ class MockLLMProvider(LLMProvider):
                 "needs_rag": False,
                 "tool": "update_lead",
                 "tool_arguments": {},
-                "memory_updates": {"business_problem": user_text},
+                "memory_updates": _mu("business_problem", user_text),
                 "missing_fields": ["channels", "monthly_leads"],
                 "lead_score_required": False,
                 "next_best_action": "ask_channel",
@@ -290,7 +292,7 @@ class MockLLMProvider(LLMProvider):
                 "needs_rag": False,
                 "tool": None,
                 "tool_arguments": {},
-                "memory_updates": {},
+                "memory_updates": [],
                 "missing_fields": ["business_problem"],
                 "lead_score_required": False,
                 "next_best_action": "ask_business_problem",
@@ -299,10 +301,10 @@ class MockLLMProvider(LLMProvider):
             }
 
         if any(w in text for w in ["whatsapp", "telegram", "сайт", "email", "instagram", "звонки"]):
-            memory_updates: dict[str, Any] = {"channels": [user_text]}
+            memory_updates: list[dict[str, Any]] = _mu("channels", [user_text])
             digits = re.findall(r"\d+", text)
             if digits:
-                memory_updates["monthly_leads"] = int(digits[0])
+                memory_updates.append({"field": "monthly_leads", "value": int(digits[0])})
             return {
                 "intent": "qualification_answer",
                 "stage": "qualification",
@@ -326,7 +328,7 @@ class MockLLMProvider(LLMProvider):
                 "needs_rag": False,
                 "tool": "update_lead",
                 "tool_arguments": {},
-                "memory_updates": {"monthly_leads": volume},
+                "memory_updates": _mu("monthly_leads", volume),
                 "missing_fields": ["current_software", "budget_range"],
                 "lead_score_required": True,
                 "next_best_action": "ask_current_software",
@@ -341,7 +343,7 @@ class MockLLMProvider(LLMProvider):
                 "needs_rag": False,
                 "tool": "update_lead",
                 "tool_arguments": {},
-                "memory_updates": {"current_software": user_text},
+                "memory_updates": _mu("current_software", user_text),
                 "missing_fields": ["budget_range"],
                 "lead_score_required": True,
                 "next_best_action": "ask_budget",
@@ -356,7 +358,10 @@ class MockLLMProvider(LLMProvider):
                 "needs_rag": False,
                 "tool": "update_lead",
                 "tool_arguments": {},
-                "memory_updates": {"budget_range": user_text, "urgency": "1-3 months"},
+                "memory_updates": [
+                    {"field": "budget_range", "value": user_text},
+                    {"field": "urgency", "value": "1-3 months"},
+                ],
                 "missing_fields": ["decision_maker"],
                 "lead_score_required": True,
                 "next_best_action": "ask_authority",
@@ -371,12 +376,31 @@ class MockLLMProvider(LLMProvider):
                 "needs_rag": False,
                 "tool": "update_lead",
                 "tool_arguments": {},
-                "memory_updates": {"decision_maker": True},
-                "missing_fields": [],
+                "memory_updates": _mu("decision_maker", True),
+                "missing_fields": ["email"],
                 "lead_score_required": True,
+                "next_best_action": "request_contact",
+                "should_offer_meeting": False,
+                "response": "Для бронирования созвона укажите, пожалуйста, email.",
+            }
+
+        if "@" in text and "." in text:
+            # crude email detection
+            import re as _re
+            email_match = _re.search(r"[\w.-]+@[\w.-]+\.\w+", text)
+            email = email_match.group(0) if email_match else text.strip()
+            return {
+                "intent": "contact_information",
+                "stage": "qualified",
+                "needs_rag": False,
+                "tool": "update_lead",
+                "tool_arguments": {},
+                "memory_updates": _mu("email", email),
+                "missing_fields": [],
+                "lead_score_required": False,
                 "next_best_action": "offer_meeting",
                 "should_offer_meeting": True,
-                "response": "С вашим объёмом обращений такой сценарий имеет смысл детально посчитать. Могу предложить несколько свободных слотов для 30-минутного созвона.",
+                "response": "Спасибо. Могу предложить несколько свободных слотов для 30-минутного созвона.",
             }
 
         if any(w in text for w in ["давайте", "предлож", "слот", "встреч"]):
@@ -386,7 +410,7 @@ class MockLLMProvider(LLMProvider):
                 "needs_rag": False,
                 "tool": "get_available_slots",
                 "tool_arguments": {},
-                "memory_updates": {},
+                "memory_updates": [],
                 "missing_fields": [],
                 "lead_score_required": False,
                 "next_best_action": "get_available_slots",
@@ -401,11 +425,11 @@ class MockLLMProvider(LLMProvider):
         if datetime_match:
             return {
                 "intent": "meeting_selection",
-                "stage": "meeting_proposed",
+                "stage": "meeting_booked",
                 "needs_rag": False,
                 "tool": "book_meeting",
                 "tool_arguments": {"datetime": datetime_match.group(0).upper()},
-                "memory_updates": {},
+                "memory_updates": [],
                 "missing_fields": [],
                 "lead_score_required": False,
                 "next_best_action": "book_meeting",
@@ -419,7 +443,7 @@ class MockLLMProvider(LLMProvider):
             "needs_rag": False,
             "tool": None,
             "tool_arguments": {},
-            "memory_updates": {},
+            "memory_updates": [],
             "missing_fields": ["business_problem"],
             "lead_score_required": False,
             "next_best_action": "continue_conversation",

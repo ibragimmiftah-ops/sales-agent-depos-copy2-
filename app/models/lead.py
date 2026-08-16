@@ -11,6 +11,7 @@ from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String, Tex
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base
+from .mixins import TenantMixin
 
 if TYPE_CHECKING:
     from .conversation import Conversation
@@ -40,7 +41,7 @@ class LeadQuality(str, enum.Enum):
     QUALIFIED = "qualified"
 
 
-class Lead(Base):
+class Lead(TenantMixin, Base):
     __tablename__ = "leads"
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=_gen_lead_id)
@@ -92,13 +93,13 @@ class Lead(Base):
         onupdate=lambda: datetime.now(timezone.utc),
     )
 
-    conversation: Mapped["Conversation"] = relationship(
+    conversation: Mapped[Conversation] = relationship(
         foreign_keys="[Lead.conversation_id]",
         uselist=False,
     )
-    events: Mapped[list["LeadEvent"]] = relationship(
+    events: Mapped[list[LeadEvent]] = relationship(
         back_populates="lead", cascade="all, delete-orphan"
     )
-    meetings: Mapped[list["Meeting"]] = relationship(
+    meetings: Mapped[list[Meeting]] = relationship(
         back_populates="lead", cascade="all, delete-orphan"
     )

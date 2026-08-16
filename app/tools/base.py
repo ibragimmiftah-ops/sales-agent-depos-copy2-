@@ -5,38 +5,47 @@ from __future__ import annotations
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, Type
+from typing import Any, TypeVar
 
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import ToolError
 from app.core.logging import get_logger
+from app.core.security import Principal
 from app.rag.retrieval import KnowledgeRetriever
+from app.services.audit import AuditService
 from app.services.calendar import CalendarService
 
 logger = get_logger(__name__)
 
+T = TypeVar("T", bound=BaseModel)
 
-@dataclass
+
+@dataclass(frozen=True)
 class ToolContext:
-    """Dependencies passed to every tool execution."""
+    """Immutable request-scoped dependencies passed to every tool execution."""
 
     session: AsyncSession
     retriever: KnowledgeRetriever
     calendar_service: CalendarService
+    principal: Principal
+    run_id: str
+    request_id: str | None = None
+    conversation_id: str | None = None
+    lead_id: str | None = None
 
 
-class Tool(ABC):
+class Tool[T](ABC):
     """Abstract agent tool with Pydantic input/output schemas."""
 
     name: str
     description: str
-    input_schema: Type[BaseModel]
-    output_schema: Type[BaseModel] | None = None
+    input_schema: type[T]
+    output_schema: type[BaseModel] | None = None
 
     @abstractmethod
-    async def execute(self, context: ToolContext, arguments: BaseModel) -> dict[str, Any]:
+    async def execute(self, context: ToolContext, arguments: T) -> dict[str, Any]:
         """Run the tool and return a JSON-serializable result dict."""
         ...
 
@@ -72,25 +81,45 @@ class ToolRegistry:
             raise ToolError(f"Invalid arguments for {name}: {exc}") from exc
 
         start = time.perf_counter()
+        error: str | None = None
+        result: dict[str, Any] = {}
         try:
             result = await tool.execute(context, validated)
             latency_ms = int((time.perf_counter() - start) * 1000)
             logger.info(
                 "tool_executed",
                 tool=name,
+                run_id=context.run_id,
                 latency_ms=latency_ms,
                 success=True,
             )
-            return {"success": True, **result}
+            result = {"success": True, **result}
         except Exception as exc:
             latency_ms = int((time.perf_counter() - start) * 1000)
+            error = str(exc)
             logger.error(
                 "tool_execution_failed",
                 tool=name,
+                run_id=context.run_id,
                 latency_ms=latency_ms,
-                error=str(exc),
+                error=error,
             )
-            return {"success": False, "error": str(exc)}
+            result = {"success": False, "error": error}
+
+        await AuditService.record_tool_call(
+            context.session,
+            tenant_id=context.principal.tenant_id,
+            tool=name,
+            arguments=arguments,
+            result=result if not error else None,
+            error=error,
+            latency_ms=latency_ms,
+            run_id=context.run_id,
+            request_id=context.request_id,
+            conversation_id=context.conversation_id,
+            lead_id=context.lead_id,
+        )
+        return result
 
 
 TOOL_REGISTRY = ToolRegistry()

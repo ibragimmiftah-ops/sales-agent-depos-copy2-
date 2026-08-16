@@ -53,5 +53,21 @@ class Settings(BaseSettings):
     KNOWLEDGE_BASE_DIR: str = "knowledge_base"
     FRONTEND_DIR: str = "frontend"
 
+    # Security
+    SECRET_KEY: str = Field(default="change-me-in-production")
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24
+
+    # Limits / budgets
+    MAX_MESSAGE_LENGTH: int = 2000
+    MAX_CONVERSATION_TURNS: int = 50
+    MAX_TOOL_CALLS_PER_RUN: int = 5
+    MAX_RAG_TOP_K: int = 10
+    RATE_LIMIT_CHAT_PER_MINUTE: int = 20
+    RATE_LIMIT_PUBLIC_TOKEN_PER_MINUTE: int = 10
+    RATE_LIMIT_OPERATOR_PER_MINUTE: int = 120
+    REQUEST_TIMEOUT_SECONDS: float = 30.0
+    LLM_TIMEOUT_SECONDS: float = 20.0
+    TOOL_TIMEOUT_SECONDS: float = 10.0
+
 
 settings = Settings()

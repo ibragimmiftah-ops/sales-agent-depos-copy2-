@@ -1,53 +1,67 @@
 version: "3.8"
 
+x-backend-env: &backend-env
+  DATABASE_URL: postgresql+asyncpg://postgres:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD required}@postgres:5432/sales_agent
+  REDIS_URL: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD required}@redis:6379/0
+  QDRANT_URL: http://qdrant:6333
+  QDRANT_API_KEY: ${QDRANT_API_KEY:?QDRANT_API_KEY required}
+  QDRANT_COLLECTION_NAME: novaflow_kb
+  OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+  LLM_PROVIDER: ${LLM_PROVIDER:-mock}
+  EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-keyword}
+  VECTOR_STORE_PROVIDER: ${VECTOR_STORE_PROVIDER:-qdrant}
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  SECRET_KEY: ${SECRET_KEY:?SECRET_KEY required}
+
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:16.4-alpine
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD required}
       POSTGRES_DB: sales_agent
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
+    networks:
+      - internal
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
       timeout: 5s
       retries: 5
+    # No ports exposed to host; only reachable inside the internal network.
 
   redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
+    image: redis:7.4-alpine
+    command: >
+      sh -c "redis-server --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD required}"
+    networks:
+      - internal
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
       interval: 5s
       timeout: 5s
       retries: 5
+    # No ports exposed to host.
 
   qdrant:
-    image: qdrant/qdrant:latest
-    ports:
-      - "6333:6333"
+    image: qdrant/qdrant:v1.11.0
+    environment:
+      QDRANT__SERVICE__API_KEY: ${QDRANT_API_KEY:?QDRANT_API_KEY required}
     volumes:
       - qdrant_data:/qdrant/storage
+    networks:
+      - internal
+    # No ports exposed to host.
 
   backend:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
     ports:
       - "8000:8000"
     environment:
-      DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/sales_agent
-      REDIS_URL: redis://redis:6379/0
-      QDRANT_URL: http://qdrant:6333
-      QDRANT_COLLECTION_NAME: novaflow_kb
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-      LLM_PROVIDER: ${LLM_PROVIDER:-openai}
-      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-openai}
-      VECTOR_STORE_PROVIDER: ${VECTOR_STORE_PROVIDER:-qdrant}
-      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      <<: *backend-env
     depends_on:
       postgres:
         condition: service_healthy
@@ -55,8 +69,20 @@ services:
         condition: service_healthy
       qdrant:
         condition: service_started
+    networks:
+      - internal
     command: >
       sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:noexec,nosuid,size=100m
+    user: "1000:1000"
+
+networks:
+  internal:
+    driver: bridge
 
 volumes:
   postgres_data:

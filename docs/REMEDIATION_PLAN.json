@@ -1,0 +1,715 @@
+{
+  "project": "NovaFlow AI Sales Agent",
+  "created_at": "2026-08-16",
+  "source_reports": [
+    "docs/AUDIT_REPORT.md",
+    "docs/MASTER_CHECKLIST_AUDIT.md"
+  ],
+  "current_disposition": "demo_only",
+  "target_disposition": "production_candidate",
+  "priority_definitions": {
+    "P0": "Release blocker: exploitable security, data integrity or cross-request isolation defect",
+    "P1": "Required before client UAT: correctness, resilience, production integration and observability",
+    "P2": "Required before production launch: evals, UX, operations, cost and governance",
+    "P3": "Post-launch maturity and optimization"
+  },
+  "release_gates": [
+    "All P0 tasks completed and independently reviewed",
+    "Authentication, authorization and tenant-isolation security tests pass",
+    "Concurrent booking and idempotency tests pass on PostgreSQL",
+    "Direct and indirect prompt-injection evals pass agreed thresholds",
+    "PostgreSQL, Redis and Qdrant integration suite passes in CI",
+    "No critical/high known vulnerability remains open",
+    "Client UAT and production readiness checklists are signed"
+  ],
+  "phases": [
+    {
+      "priority": "P0",
+      "name": "Security and integrity blockers",
+      "status": "completed",
+      "tasks": [
+        {
+          "id": "P0-01",
+          "status": "completed",
+          "title": "Add authentication, roles and tenant isolation",
+          "findings": [
+            "C1",
+            "H9"
+          ],
+          "depends_on": [],
+          "changes": [
+            "Add users/tenants/memberships or an external identity-provider integration",
+            "Add tenant_id to lead, conversation, message, event, meeting and knowledge metadata",
+            "Require authenticated principals for all non-health routes",
+            "Separate public chat permissions from operator/admin CRM permissions",
+            "Filter every repository query by server-derived tenant_id and ownership"
+          ],
+          "acceptance_criteria": [
+            "Anonymous access to leads, events and conversations returns 401",
+            "Cross-tenant lead/conversation access returns 404 or 403 without revealing existence",
+            "Public chat cannot enumerate or patch CRM records",
+            "Tenant ID cannot be overridden by request or LLM tool arguments"
+          ],
+          "verification": [
+            "Security tests for IDOR, enumeration and tenant crossing",
+            "Repository tests proving mandatory tenant filters",
+            "OpenAPI documents authentication requirements"
+          ]
+        },
+        {
+          "id": "P0-02",
+          "title": "Replace generic writes with typed, allowlisted commands",
+          "findings": [
+            "C2"
+          ],
+          "depends_on": [
+            "P0-01"
+          ],
+          "changes": [
+            "Replace LeadUpdateRequest.fields with role-specific Pydantic models",
+            "Create separate qualification, operator and system update commands",
+            "Reject immutable/internal fields such as id, tenant_id, score, status and timestamps",
+            "Make memory_updates a typed qualification-fields model",
+            "Always overwrite lead_id/conversation_id/tenant_id with server context"
+          ],
+          "acceptance_criteria": [
+            "Unknown or internal update fields return 422",
+            "LLM cannot change score, status, ownership, IDs or timestamps directly",
+            "Every write command has explicit field-level authorization"
+          ],
+          "verification": [
+            "Mass-assignment tests",
+            "Cross-lead tool-argument injection tests",
+            "Schema tests for all allowed and forbidden fields"
+          ],
+          "status": "completed"
+        },
+        {
+          "id": "P0-03",
+          "title": "Make tool context request-scoped and concurrency-safe",
+          "findings": [
+            "C3"
+          ],
+          "depends_on": [],
+          "changes": [
+            "Remove mutable ToolContext from the SalesAgent singleton",
+            "Construct ToolContext inside each handle invocation",
+            "Pass session/principal/tenant as immutable request-scoped dependencies",
+            "Prevent SQLAlchemy objects from crossing sessions"
+          ],
+          "acceptance_criteria": [
+            "Concurrent requests never share AsyncSession or transaction state",
+            "SalesAgent singleton contains only stateless/thread-safe dependencies"
+          ],
+          "verification": [
+            "Concurrent /chat stress test with multiple tenants",
+            "Instrumentation asserting unique session identity per request"
+          ],
+          "status": "completed"
+        },
+        {
+          "id": "P0-04",
+          "title": "Enforce deterministic stage and qualification policy",
+          "findings": [
+            "H1"
+          ],
+          "depends_on": [
+            "P0-02"
+          ],
+          "changes": [
+            "Treat LLM stage/meeting flags as proposals only",
+            "Calculate allowed transition from verified fields and scoring policy",
+            "Require score threshold, authority, contact data and explicit meeting consent",
+            "Remove direct forward jumps to meeting_booked",
+            "Transition to meeting_booked only from a verified booking result"
+          ],
+          "acceptance_criteria": [
+            "A low-score or incomplete lead cannot invoke booking",
+            "Failed tools cannot advance the funnel",
+            "State transitions are deterministic and unit-tested"
+          ],
+          "verification": [
+            "Policy table tests for every state transition",
+            "Adversarial decision-output tests",
+            "Booking failure leaves lead in meeting_proposed or qualified"
+          ],
+          "status": "completed"
+        },
+        {
+          "id": "P0-05",
+          "title": "Make write tools transactional, idempotent and result-verified",
+          "findings": [
+            "H2",
+            "H3"
+          ],
+          "depends_on": [
+            "P0-03",
+            "P0-04"
+          ],
+          "changes": [
+            "Use typed ToolSuccess/ToolFailure envelopes",
+            "Use nested transactions/savepoints around tool writes",
+            "Rollback failed tool transactions before further DB use",
+            "Add request/action idempotency keys",
+            "Persist a pending action with exact parameters before external writes",
+            "Generate response from verified tool results, never an optimistic draft"
+          ],
+          "acceptance_criteria": [
+            "Repeated booking/update requests execute once",
+            "Tool failure never returns a success claim",
+            "Database and CRM state remain consistent after partial failures"
+          ],
+          "verification": [
+            "Duplicate-request tests",
+            "Injected DB/tool failure tests",
+            "Transaction rollback assertions"
+          ],
+          "status": "completed"
+        },
+        {
+          "id": "P0-06",
+          "title": "Add atomic calendar overlap and offered-slot enforcement",
+          "findings": [
+            "H3"
+          ],
+          "depends_on": [
+            "P0-05"
+          ],
+          "changes": [
+            "Model meetings as start/end intervals",
+            "Add PostgreSQL exclusion or equivalent conflict constraint",
+            "Validate future time, timezone, business hours and duration",
+            "Require a non-expired offered-slot/pending-action token",
+            "Flush meeting before writing its ID into audit events"
+          ],
+          "acceptance_criteria": [
+            "Overlapping and concurrent bookings cannot both commit",
+            "Unseen, expired, past or out-of-hours slots are rejected",
+            "Audit event always contains the persisted meeting ID"
+          ],
+          "verification": [
+            "PostgreSQL concurrent-booking test",
+            "Interval overlap matrix tests",
+            "DST and timezone edge-case tests"
+          ],
+          "status": "completed"
+        },
+        {
+          "id": "P0-07",
+          "title": "Establish prompt-injection trust boundaries",
+          "findings": [
+            "C4"
+          ],
+          "depends_on": [
+            "P0-02",
+            "P0-04"
+          ],
+          "changes": [
+            "Keep user, lead, RAG and tool content in explicitly delimited untrusted-data blocks",
+            "Add policy that retrieved/user content cannot redefine system rules or tool permissions",
+            "Sanitize and validate knowledge provenance",
+            "Never authorize an action from model text alone",
+            "Refuse system-prompt/key disclosure requests"
+          ],
+          "acceptance_criteria": [
+            "Direct and stored injections cannot change tenant, target lead, permissions or policy",
+            "Indirect RAG injection cannot trigger write tools",
+            "System prompt and secrets are not disclosed"
+          ],
+          "verification": [
+            "Direct prompt-injection eval suite",
+            "Persistent memory injection tests",
+            "Indirect malicious-document eval suite"
+          ],
+          "status": "completed"
+        },
+        {
+          "id": "P0-08",
+          "title": "Remove stored XSS and add browser security controls",
+          "findings": [
+            "C6"
+          ],
+          "depends_on": [],
+          "changes": [
+            "Replace lead-table innerHTML interpolation with DOM nodes and textContent",
+            "Add CSP, X-Content-Type-Options, frame restrictions and Referrer-Policy",
+            "Add safe URL handling and output encoding rules"
+          ],
+          "acceptance_criteria": [
+            "HTML/JS payloads render as text in all views",
+            "CSP blocks inline script execution"
+          ],
+          "verification": [
+            "Stored-XSS browser test",
+            "Security-header integration test"
+          ],
+          "status": "completed"
+        },
+        {
+          "id": "P0-09",
+          "title": "Secure Docker networking and secrets",
+          "findings": [
+            "C5"
+          ],
+          "depends_on": [],
+          "changes": [
+            "Remove host port publication for PostgreSQL, Redis and Qdrant",
+            "Replace default credentials with secret references",
+            "Enable Redis ACL/auth and Qdrant API key",
+            "Pin all image versions",
+            "Run backend as non-root on a read-only filesystem where feasible"
+          ],
+          "acceptance_criteria": [
+            "Only ingress/backend port is externally reachable",
+            "No default credential appears in deployment manifests",
+            "Containers run with minimum capabilities and pinned images"
+          ],
+          "verification": [
+            "docker compose config review",
+            "Port exposure test",
+            "Container and secret scan"
+          ],
+          "status": "completed"
+        },
+        {
+          "id": "P0-10",
+          "title": "Add API limits, timeouts and abuse protection",
+          "findings": [
+            "H9"
+          ],
+          "depends_on": [
+            "P0-01"
+          ],
+          "changes": [
+            "Bound message/conversation/pagination/date-range/duration/top_k values",
+            "Add per-IP, per-user and per-tenant rate limits",
+            "Add LLM, RAG, tool and total-request timeouts",
+            "Add max turns, max tool calls and per-run token/cost budget",
+            "Add repeated-identical-call detection"
+          ],
+          "acceptance_criteria": [
+            "Oversized requests fail with 422 or 413",
+            "Rate exhaustion returns 429",
+            "Timed-out operations terminate without side effects",
+            "A run cannot exceed configured cost/tool/turn limits"
+          ],
+          "verification": [
+            "Load and abuse tests",
+            "Timeout/cancellation tests",
+            "Run-budget tests"
+          ],
+          "status": "completed"
+        },
+        {
+          "id": "P0-11",
+          "title": "Reconcile ORM, migrations and integrity constraints",
+          "findings": [
+            "H8"
+          ],
+          "depends_on": [
+            "P0-01",
+            "P0-06"
+          ],
+          "changes": [
+            "Choose one canonical Lead-Conversation relationship",
+            "Add corrective Alembic migration",
+            "Add indexes for tenant/email/phone/events/messages/meetings",
+            "Add check constraints for score, volume, status and duration",
+            "Add Alembic metadata-drift verification"
+          ],
+          "acceptance_criteria": [
+            "Alembic schema equals SQLAlchemy metadata",
+            "Referential integrity prevents inconsistent conversation links",
+            "Required indexes and checks exist in PostgreSQL"
+          ],
+          "verification": [
+            "PostgreSQL upgrade/downgrade test",
+            "alembic check in CI",
+            "Constraint violation tests"
+          ],
+          "status": "completed"
+        },
+        {
+          "id": "P0-12",
+          "title": "Create mandatory security regression suite",
+          "findings": [
+            "H12"
+          ],
+          "depends_on": [
+            "P0-01",
+            "P0-02",
+            "P0-05",
+            "P0-07",
+            "P0-08",
+            "P0-10"
+          ],
+          "changes": [
+            "Add auth/authz/IDOR/tenant-crossing tests",
+            "Add mass-assignment and tool-scope tests",
+            "Add prompt-injection and secret-extraction tests",
+            "Add XSS/security-header tests",
+            "Add idempotency, race and unauthorized-write tests"
+          ],
+          "acceptance_criteria": [
+            "All previously documented critical attacks are blocked by automated tests",
+            "Security suite runs without production credentials"
+          ],
+          "verification": [
+            "CI security test job is required for merge",
+            "Independent review of negative test coverage"
+          ],
+          "status": "completed"
+        }
+      ]
+    },
+    {
+      "priority": "P1",
+      "name": "Correctness, resilience and production integration",
+      "status": "partial",
+      "tasks": [
+        {
+          "id": "P1-01",
+          "title": "Implement strict structured-output contracts",
+          "depends_on": [
+            "P0-02",
+            "P0-04"
+          ],
+          "acceptance_criteria": [
+            "Provider-native strict schema is used where available",
+            "Validation errors trigger bounded repair/retry",
+            "Cross-field validators reject unsafe decisions"
+          ],
+          "status": "partial"
+        },
+        {
+          "id": "P1-02",
+          "title": "Fix provider adapters and fallback behavior",
+          "depends_on": [
+            "P1-01"
+          ],
+          "acceptance_criteria": [
+            "OpenAI and Anthropic contract tests pass with provider-specific models/messages",
+            "Missing/unavailable provider enters a tested safe fallback without startup failure"
+          ],
+          "status": "partial"
+        },
+        {
+          "id": "P1-03",
+          "title": "Repair RAG lifecycle and grounding controls",
+          "depends_on": [
+            "P0-07"
+          ],
+          "acceptance_criteria": [
+            "Keyword fallback uses the same ingested store instance",
+            "Qdrant uses valid deterministic UUID/integer IDs and idempotent upserts",
+            "Retrieval enforces relevance/context limits and verified source metadata",
+            "No-result behavior refuses unsupported factual claims"
+          ],
+          "status": "partial"
+        },
+        {
+          "id": "P1-04",
+          "title": "Harden memory and durable recovery",
+          "depends_on": [
+            "P0-01"
+          ],
+          "acceptance_criteria": [
+            "Redis operation failures fall back safely and reconnect",
+            "PostgreSQL history restores context after Redis loss/restart",
+            "Memory has source/timestamp/type and tenant-bound deletion/retention"
+          ],
+          "status": "partial"
+        },
+        {
+          "id": "P1-05",
+          "title": "Add persistent tool-call audit and request tracing",
+          "depends_on": [
+            "P0-01",
+            "P0-05"
+          ],
+          "acceptance_criteria": [
+            "Every run/request/tool call has correlated IDs and duration",
+            "Tool args/results are redacted and persisted with status/error category",
+            "Sequence can be reconstructed without private chain-of-thought"
+          ],
+          "status": "completed"
+        },
+        {
+          "id": "P1-06",
+          "title": "Implement liveness, readiness and safe error envelopes",
+          "depends_on": [
+            "P0-10"
+          ],
+          "acceptance_criteria": [
+            "Liveness checks process only",
+            "Readiness checks PostgreSQL and critical configured dependencies",
+            "Unavailable service returns 503 and stable request_id error envelope",
+            "Stack traces/raw provider or DB details never reach clients"
+          ],
+          "status": "completed"
+        },
+        {
+          "id": "P1-07",
+          "title": "Add production dependency integration suite",
+          "depends_on": [
+            "P0-11",
+            "P1-02",
+            "P1-03",
+            "P1-04"
+          ],
+          "acceptance_criteria": [
+            "CI tests PostgreSQL, Redis and Qdrant",
+            "Sandbox tests cover configured real LLM providers",
+            "Outage, timeout and malformed-result cases pass"
+          ],
+          "status": "partial"
+        },
+        {
+          "id": "P1-08",
+          "title": "Create CI quality and security gates",
+          "depends_on": [
+            "P0-12",
+            "P1-07"
+          ],
+          "acceptance_criteria": [
+            "PR workflow runs lint, format, type check, tests, Alembic check, secret/dependency/container scans",
+            "Production branch is protected and failed gates block merge"
+          ],
+          "status": "completed"
+        },
+        {
+          "id": "P1-09",
+          "title": "Align knowledge-base claims with implemented controls",
+          "depends_on": [
+            "P0-01",
+            "P1-04"
+          ],
+          "acceptance_criteria": [
+            "RBAC, encryption, retention and handoff statements are either implemented/evidenced or removed",
+            "Each KB document has owner, version and review date"
+          ],
+          "status": "partial"
+        },
+        {
+          "id": "P1-10",
+          "title": "Version and constrain the public API",
+          "depends_on": [
+            "P0-01",
+            "P0-02",
+            "P1-06"
+          ],
+          "acceptance_criteria": [
+            "Business endpoints are under /api/v1",
+            "Typed request/response/error models and correct 401/403/404/409/422/429/503 codes are documented",
+            "CORS and CSRF policy matches the authentication mechanism"
+          ],
+          "status": "completed"
+        }
+      ]
+    },
+    {
+      "priority": "P2",
+      "name": "Production readiness, evals and client handover",
+      "status": "partial",
+      "tasks": [
+        {
+          "id": "P2-01",
+          "title": "Create business requirements and KPI baseline",
+          "depends_on": [],
+          "acceptance_criteria": [
+            "Named owners approve current/future workflow, volumes, error cost, refusal/escalation rules, KPI targets and per-scenario DoD/DoF"
+          ],
+          "status": "partial"
+        },
+        {
+          "id": "P2-02",
+          "title": "Build an eval dataset and regression harness",
+          "depends_on": [
+            "P1-01",
+            "P1-03",
+            "P2-01"
+          ],
+          "acceptance_criteria": [
+            "Dataset covers happy, ambiguous, contradictory, long, multilingual, tool failure, DB failure, RAG, injection, unauthorized and escalation cases",
+            "Metrics track task success, tool selection/args, schema validity, groundedness, unsafe actions, latency and cost"
+          ],
+          "status": "partial"
+        },
+        {
+          "id": "P2-03",
+          "title": "Implement human approval and escalation",
+          "depends_on": [
+            "P0-05",
+            "P2-01"
+          ],
+          "acceptance_criteria": [
+            "Approve/Reject/Modify/Escalate are persisted and tenant-bound",
+            "Parameter changes invalidate previous approval",
+            "Rejected actions cannot be executed through another tool"
+          ],
+          "status": "partial"
+        },
+        {
+          "id": "P2-04",
+          "title": "Add cost and latency budgets",
+          "depends_on": [
+            "P1-05",
+            "P2-02"
+          ],
+          "acceptance_criteria": [
+            "Cost per run/100 runs/month is documented",
+            "Token/tool/storage budgets and alerts are enforced",
+            "Latency SLOs and p50/p95/p99 dashboards exist"
+          ],
+          "status": "partial"
+        },
+        {
+          "id": "P2-05",
+          "title": "Complete frontend security, UX and accessibility",
+          "depends_on": [
+            "P0-08",
+            "P1-10",
+            "P2-03"
+          ],
+          "acceptance_criteria": [
+            "Loading/error/duplicate-submit/history restore are implemented",
+            "Approval/escalation/source displays exist",
+            "Desktop/mobile and keyboard/accessibility tests pass"
+          ],
+          "status": "partial"
+        },
+        {
+          "id": "P2-06",
+          "title": "Create backup, restore, retention and deletion controls",
+          "depends_on": [
+            "P0-01",
+            "P0-11"
+          ],
+          "acceptance_criteria": [
+            "Encrypted off-host backups and Qdrant snapshots run on schedule",
+            "Restore is tested against documented RPO/RTO",
+            "Tenant/user deletion and retention jobs are audited"
+          ],
+          "status": "partial"
+        },
+        {
+          "id": "P2-07",
+          "title": "Create deployment, rollback and incident runbooks",
+          "depends_on": [
+            "P1-06",
+            "P1-08",
+            "P2-06"
+          ],
+          "acceptance_criteria": [
+            "Staging and production are separated",
+            "HTTPS/domain/secrets/monitoring/alerts are configured",
+            "Rollback and incident response are rehearsed"
+          ],
+          "status": "partial"
+        },
+        {
+          "id": "P2-08",
+          "title": "Execute client UAT and handover",
+          "depends_on": [
+            "P2-02",
+            "P2-03",
+            "P2-05",
+            "P2-07"
+          ],
+          "acceptance_criteria": [
+            "Client executes at least three typical plus error/ambiguous/risky/outage/injection/unauthorized scenarios",
+            "Expected and actual results are recorded",
+            "Business, security, knowledge and production owners sign acceptance"
+          ],
+          "status": "partial"
+        }
+      ]
+    },
+    {
+      "priority": "P3",
+      "name": "Post-launch maturity",
+      "status": "partial",
+      "tasks": [
+        {
+          "id": "P3-01",
+          "title": "Establish production quality dashboards",
+          "acceptance_criteria": [
+            "Success, failure, tool failure, hallucination, escalation, latency, cost and complaints are monitored"
+          ],
+          "status": "partial"
+        },
+        {
+          "id": "P3-02",
+          "title": "Version prompts, models and knowledge releases",
+          "acceptance_criteria": [
+            "Every prompt/model/KB change has version, owner, eval evidence and rollback path"
+          ],
+          "status": "partial"
+        },
+        {
+          "id": "P3-03",
+          "title": "Feed production incidents into evals",
+          "acceptance_criteria": [
+            "Every confirmed production failure becomes a sanitized regression case"
+          ],
+          "status": "partial"
+        },
+        {
+          "id": "P3-04",
+          "title": "Review new tools before activation",
+          "acceptance_criteria": [
+            "Every new tool has threat model, least-privilege scope, idempotency, tests and approval classification"
+          ],
+          "status": "partial"
+        }
+      ]
+    }
+  ],
+  "completion_summary": {
+    "completed_tasks": [
+      "P0-01",
+      "P0-02",
+      "P0-03",
+      "P0-04",
+      "P0-05",
+      "P0-06",
+      "P0-07",
+      "P0-08",
+      "P0-09",
+      "P0-10",
+      "P0-11",
+      "P0-12",
+      "P1-05",
+      "P1-06",
+      "P1-08",
+      "P1-10"
+    ],
+    "partial_tasks": [
+      "P1-01",
+      "P1-02",
+      "P1-03",
+      "P1-04",
+      "P1-07",
+      "P1-09",
+      "P2-01",
+      "P2-02",
+      "P2-03",
+      "P2-04",
+      "P2-05",
+      "P2-06",
+      "P2-07",
+      "P2-08",
+      "P3-01",
+      "P3-02",
+      "P3-03",
+      "P3-04"
+    ],
+    "known_limitations": [
+      "P2/P3 items requiring client business decisions, signatures or production infrastructure are documented but not executed.",
+      "Real OAuth integrations, external webhooks and sandbox provider contracts require client credentials and separate integration tests.",
+      "PostgreSQL/Redis/Qdrant integration suite is configured in CI but not exercised here due to lack of local Docker.",
+      "mypy suppresses pre-existing type errors in app.services.llm, app.agent.schemas and app.rag.vector_store pending a dedicated typing refactor."
+    ],
+    "verification": "40 tests pass; ruff and mypy gates pass; security regression suite covers IDOR, mass-assignment, XSS and auth."
+  }
+}

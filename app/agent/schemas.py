@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 INTENTS = [
     "greeting",
@@ -66,12 +66,47 @@ TOOLS = [
     "save_memory",
 ]
 
+ALLOWED_MEMORY_FIELDS = {
+    "name",
+    "company",
+    "email",
+    "phone",
+    "industry",
+    "company_size",
+    "business_problem",
+    "desired_solution",
+    "current_process",
+    "current_software",
+    "channels",
+    "monthly_leads",
+    "monthly_customer_requests",
+    "budget_range",
+    "deadline",
+    "decision_maker",
+    "urgency",
+    "additional_notes",
+}
+
+
+class MemoryUpdate(BaseModel):
+    """Typed memory update returned by the LLM."""
+
+    field: str = Field(..., description="Lead field to update")
+    value: Any = Field(..., description="New value for the field")
+
+    @field_validator("field")
+    @classmethod
+    def _validate_field(cls, v: str) -> str:
+        if v not in ALLOWED_MEMORY_FIELDS:
+            raise ValueError(f"Field '{v}' is not an allowed memory field")
+        return v
+
 
 class AgentDecision(BaseModel):
     """Structured decision returned by the LLM for every user message."""
 
     intent: Literal[tuple(INTENTS)] = Field(..., description="Detected user intent")
-    stage: Literal[tuple(STAGES)] = Field(..., description="Target lead stage")
+    stage: Literal[tuple(STAGES)] = Field(..., description="Target lead stage proposal")
     needs_rag: bool = Field(
         default=False,
         description="Whether the response requires knowledge-base lookup",
@@ -84,6 +119,12 @@ class AgentDecision(BaseModel):
         default=None,
         description="Optional metadata category filter for RAG",
     )
+    top_k: int | None = Field(
+        default=5,
+        ge=1,
+        le=10,
+        description="Number of RAG results to retrieve",
+    )
     tool: Literal[tuple(TOOLS)] | None = Field(
         default=None,
         description="Tool to call if an external action is required",
@@ -92,8 +133,8 @@ class AgentDecision(BaseModel):
         default_factory=dict,
         description="Arguments for the selected tool",
     )
-    memory_updates: dict[str, Any] = Field(
-        default_factory=dict,
+    memory_updates: list[MemoryUpdate] = Field(
+        default_factory=list,
         description="Long-term lead fields to update from this message",
     )
     missing_fields: list[str] = Field(
@@ -116,6 +157,15 @@ class AgentDecision(BaseModel):
         ...,
         description="User-facing reply text in the same language as the user",
     )
+
+    @field_validator("tool_arguments")
+    @classmethod
+    def _reject_scope_override(cls, v: dict[str, Any]) -> dict[str, Any]:
+        forbidden = {"tenant_id", "lead_id"}
+        for key in forbidden:
+            if key in v:
+                raise ValueError(f"Tool arguments may not override {key}")
+        return v
 
 
 class AgentState(BaseModel):

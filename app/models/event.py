@@ -6,10 +6,11 @@ import uuid
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, ForeignKey, JSON, String, Text
+from sqlalchemy import JSON, DateTime, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base
+from .mixins import TenantMixin
 
 if TYPE_CHECKING:
     from .lead import Lead
@@ -19,7 +20,7 @@ def _gen_event_id() -> str:
     return f"evt_{uuid.uuid4().hex[:12]}"
 
 
-class LeadEvent(Base):
+class LeadEvent(TenantMixin, Base):
     __tablename__ = "lead_events"
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=_gen_event_id)
@@ -33,4 +34,4 @@ class LeadEvent(Base):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
-    lead: Mapped["Lead"] = relationship(back_populates="events")
+    lead: Mapped[Lead] = relationship(back_populates="events")

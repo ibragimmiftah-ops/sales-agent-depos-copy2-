@@ -1,6 +1,7 @@
 """Structured JSON logging setup."""
 
 import logging
+
 import structlog
 
 from .config import settings
