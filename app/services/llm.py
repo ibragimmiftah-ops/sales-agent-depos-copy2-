@@ -153,7 +153,7 @@ class AnthropicProvider(LLMProvider):
         tool_name = "agent_decision"
         tool_schema = schema.model_json_schema()
         system_text = (
-            "You are an AI Sales Agent for NovaFlow AI. Use the agent_decision tool."
+            "You are an AI Sales Agent. Use the agent_decision tool."
         )
         temp = temperature if temperature is not None else self.default_temperature
         try:

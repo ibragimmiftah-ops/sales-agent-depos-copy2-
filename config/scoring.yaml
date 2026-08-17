@@ -1,4 +1,4 @@
-# Configurable lead scoring for NovaFlow AI Sales Agent.
+# Configurable lead scoring for AI Sales Agent.
 # Weights can be tuned without touching business logic.
 
 criteria:

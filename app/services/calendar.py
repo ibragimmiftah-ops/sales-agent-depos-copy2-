@@ -226,7 +226,7 @@ class CalendarService:
             duration_minutes=duration_minutes,
             timezone=tz_name,
             status="scheduled",
-            meeting_url=f"https://meet.novaflow.ai/{lead_id}",
+            meeting_url=f"https://meet.example.com/{lead_id}",
         )
         session.add(meeting)
 

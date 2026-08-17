@@ -11,7 +11,7 @@
       {"message": "Да, я директор", "expected_stage": "qualified"},
       {"message": "manager@dentalpro.fi", "expected_stage": "qualified"},
       {"message": "давайте", "expected_stage": "meeting_proposed"},
-      {"message": "2026-08-17T12:00:00+03:00", "expected_stage": "meeting_booked"}
+      {"message": "2026-08-18T12:00:00+03:00", "expected_stage": "meeting_booked"}
     ]
   },
   {
@@ -28,7 +28,7 @@
     "description": "Low-score lead cannot book a meeting",
     "conversation": [
       {"message": "Привет", "expected_stage": "engaged"},
-      {"message": "2026-08-17T12:00:00+03:00", "expected_stage": "engaged"}
+      {"message": "2026-08-18T12:00:00+03:00", "expected_stage": "engaged"}
     ]
   },
   {

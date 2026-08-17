@@ -7,7 +7,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
-    PROJECT_NAME: str = "NovaFlow AI Sales Agent"
+    PROJECT_NAME: str = "AI Sales Agent"
     ENVIRONMENT: str = "development"
     DEBUG: bool = Field(default=False)
     LOG_LEVEL: str = "INFO"
@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     # Vector store (RAG)
     VECTOR_STORE_PROVIDER: str = "qdrant"  # qdrant | chroma
     QDRANT_URL: str = "http://localhost:6333"
-    QDRANT_COLLECTION_NAME: str = "novaflow_kb"
+    QDRANT_COLLECTION_NAME: str = "sales_agent_kb"
     CHROMA_PERSIST_DIR: str = "./chroma_data"
 
     # Embeddings

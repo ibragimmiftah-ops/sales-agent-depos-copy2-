@@ -4,14 +4,14 @@ const messageInput = document.getElementById('message-input');
 const agentStateBox = document.getElementById('agent-state');
 const toolCallsBox = document.getElementById('tool-calls');
 
-let conversationId = localStorage.getItem('novaflow_conversation_id');
+let conversationId = localStorage.getItem('sales_agent_conversation_id');
 if (!conversationId) {
   conversationId = 'conv_' + Math.random().toString(36).slice(2, 14);
-  localStorage.setItem('novaflow_conversation_id', conversationId);
+  localStorage.setItem('sales_agent_conversation_id', conversationId);
 }
 
 async function getChatToken() {
-  let token = localStorage.getItem('novaflow_chat_token');
+  let token = localStorage.getItem('sales_agent_chat_token');
   if (token) {
     return token;
   }
@@ -21,7 +21,7 @@ async function getChatToken() {
   }
   const data = await res.json();
   token = data.access_token;
-  localStorage.setItem('novaflow_chat_token', token);
+  localStorage.setItem('sales_agent_chat_token', token);
   return token;
 }
 
@@ -72,7 +72,7 @@ chatForm.addEventListener('submit', (e) => {
   sendMessage(text);
 });
 
-appendMessage('assistant', 'Привет! Я AI-агент NovaFlow AI. Расскажите, какую задачу хотите решить?');
+appendMessage('assistant', 'Привет! Я AI-агент продаж. Расскажите, какую задачу хотите решить?');
 renderState({
   conversation_id: conversationId,
   lead_id: null,
@@ -84,5 +84,5 @@ renderState({
   missing_fields: ['business_problem'],
   collected_fields: {},
   last_tool_calls: [],
-  response: 'Привет! Я AI-агент NovaFlow AI. Расскажите, какую задачу хотите решить?',
+  response: 'Привет! Я AI-агент продаж. Расскажите, какую задачу хотите решить?',
 });

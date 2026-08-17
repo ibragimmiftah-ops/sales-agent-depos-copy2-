@@ -21,7 +21,7 @@ async def test_demo_conversation_flow(client: TestClient):
         ("Да, я директор", "qualified"),
         ("manager@dentalpro.fi", "qualified"),
         ("давайте", "meeting_proposed"),
-        ("2026-08-17T12:00:00+03:00", "meeting_booked"),
+        ("2026-08-18T12:00:00+03:00", "meeting_booked"),
     ]
 
     for message, expected_stage in steps:

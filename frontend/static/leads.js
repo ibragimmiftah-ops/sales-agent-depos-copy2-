@@ -23,7 +23,7 @@ function createCell(text, className) {
 }
 
 async function getAuthHeaders() {
-  const token = localStorage.getItem('novaflow_operator_token');
+  const token = localStorage.getItem('sales_agent_operator_token');
   return token ? { 'Authorization': `Bearer ${token}` } : {};
 }
 

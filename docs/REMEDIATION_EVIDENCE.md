@@ -1,4 +1,4 @@
-# Remediation Evidence — NovaFlow AI Sales Agent
+# Remediation Evidence — AI Sales Agent
 
 **Remediation date:** 2026-08-16  
 **Target disposition:** production_candidate  

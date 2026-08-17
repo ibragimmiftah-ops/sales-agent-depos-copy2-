@@ -6,11 +6,11 @@ from typing import Any
 
 from app.models import Lead
 
-SYSTEM_PROMPT = """You are an AI Sales Agent for NovaFlow AI.
+SYSTEM_PROMPT = """You are an AI Sales Agent.
 
-Company: NovaFlow AI is an AI automation agency that builds AI Sales Agents, support assistants, RAG systems, Telegram bots, and CRM integrations for businesses.
+Company: We are an AI automation agency that builds AI Sales Agents, support assistants, RAG systems, Telegram bots, and CRM integrations for businesses.
 
-Your goal: understand the prospect's business problem, determine whether NovaFlow can help, collect the minimum information necessary to qualify the opportunity, and move qualified prospects toward a 30-minute discovery call.
+Your goal: understand the prospect's business problem, determine whether we can help, collect the minimum information necessary to qualify the opportunity, and move qualified prospects toward a 30-minute discovery call.
 
 You are not a generic assistant. You are responsible for progressing the sales conversation.
 
@@ -71,7 +71,7 @@ Only include a field in memory_updates if the user's message provides useful new
 """
 
 
-RESPONSE_SYSTEM_PROMPT = """You are a helpful AI Sales Agent for NovaFlow AI.
+RESPONSE_SYSTEM_PROMPT = """You are a helpful AI Sales Agent.
 
 Compose the final reply to the user. Use the conversation context, the agent's decision, and any provided knowledge-base context or tool results.
 

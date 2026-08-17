@@ -1,4 +1,4 @@
-# NovaFlow AI Sales Agent
+# AI Sales Agent
 
 Production-oriented AI Sales Agent that replaces the first line of sales.
 
@@ -36,7 +36,7 @@ Most incoming leads are lost because:
 - qualification data is scattered across messengers and CRMs;
 - no one follows up consistently.
 
-**NovaFlow AI Sales Agent** solves this by:
+**AI Sales Agent** solves this by:
 
 - instantly responding to incoming messages;
 - qualifying prospects naturally, one question at a time;
@@ -229,7 +229,7 @@ alembic upgrade head
 | `REDIS_URL` | `redis://localhost:6379/0` | Short-term memory |
 | `QDRANT_URL` | `http://localhost:6333` | Vector database |
 | `QDRANT_API_KEY` | — | Required for Qdrant in Docker Compose |
-| `QDRANT_COLLECTION_NAME` | `novaflow_kb` | Collection for RAG |
+| `QDRANT_COLLECTION_NAME` | `sales_agent_kb` | Collection for RAG |
 | `SECRET_KEY` | — | JWT secret; must be at least 32 characters in production |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | `1440` | JWT lifetime |
 | `OPENAI_API_KEY` | — | Required when `LLM_PROVIDER=openai` |

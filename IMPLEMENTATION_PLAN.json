@@ -1,6 +1,6 @@
 {
   "project": "ai-sales-agent",
-  "company": "NovaFlow AI",
+  "company": "AI Sales Agent demo",
   "version": "1.0.0",
   "created": "2026-08-15",
   "goal": "AI Sales Agent, который ведёт входящие обращения по воронке: intent detection -> RAG -> qualification -> lead scoring -> CRM -> booking встречи",
@@ -60,7 +60,7 @@
       "status": "pending",
       "depends_on": [2],
       "tasks": [
-        {"id": "5.1", "task": "Написать knowledge_base: company.md, services.md, pricing.md, faq.md, cases.md, process.md, technical_capabilities.md (демо-компания NovaFlow AI)", "artifact": "knowledge_base/", "done": false},
+        {"id": "5.1", "task": "Написать knowledge_base: company.md, services.md, pricing.md, faq.md, cases.md, process.md, technical_capabilities.md (демо-компания)", "artifact": "knowledge_base/", "done": false},
         {"id": "5.2", "task": "Chunking + embeddings слой (OpenAI embeddings)", "artifact": "app/rag/embeddings.py, app/rag/ingestion.py", "done": false},
         {"id": "5.3", "task": "VectorStore abstraction: Qdrant (prod) + ChromaDB (local fallback), metadata (source, category, service)", "artifact": "app/rag/retrieval.py", "done": false},
         {"id": "5.4", "task": "CLI-скрипт ingestion: populate vector db из markdown", "artifact": "app/rag/ingestion.py", "done": false}

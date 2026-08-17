@@ -1,4 +1,4 @@
-# Independent Audit Report — NovaFlow AI Sales Agent
+# Independent Audit Report — AI Sales Agent
 
 **Audit date:** 2026-08-16  
 **Scope:** full repository (`app`, database models/migrations, agent loop, tools, RAG, memory, API, frontend, tests, Docker and documentation)  

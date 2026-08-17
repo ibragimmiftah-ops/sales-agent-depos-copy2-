@@ -32,12 +32,12 @@ async def test_generate_slots_in_range(
         db_session,
         tenant_id=tenant.id,
         timezone="Europe/Helsinki",
-        date_from="2026-08-17",
-        date_to="2026-08-17",
+        date_from="2026-08-18",
+        date_to="2026-08-18",
         duration_minutes=30,
     )
     assert len(slots) > 0
-    assert all("2026-08-17" in s for s in slots)
+    assert all("2026-08-18" in s for s in slots)
 
 
 @pytest.mark.asyncio
@@ -50,7 +50,7 @@ async def test_book_and_prevent_double_booking(
     )
     await db_session.commit()
 
-    slot = "2026-08-17T12:00:00+03:00"
+    slot = "2026-08-18T12:00:00+03:00"
     meeting = await calendar.book_meeting(
         db_session,
         tenant_id=tenant.id,
@@ -86,8 +86,8 @@ async def test_invalid_timezone_raises(
             db_session,
             tenant_id=tenant.id,
             timezone="Mars/Phobos",
-            date_from="2026-08-17",
-            date_to="2026-08-17",
+        date_from="2026-08-18",
+        date_to="2026-08-18",
             duration_minutes=30,
         )
 

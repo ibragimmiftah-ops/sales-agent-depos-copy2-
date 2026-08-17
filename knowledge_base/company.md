@@ -1,6 +1,6 @@
-# NovaFlow AI — Company Overview
+# Company Overview
 
-NovaFlow AI is an AI automation agency that helps businesses build and deploy production-ready AI agents, assistants, and workflow automations.
+We are an AI automation agency that helps businesses build and deploy production-ready AI agents, assistants, and workflow automations.
 
 ## Mission
 
@@ -30,6 +30,6 @@ Remote-first with legal entity in Estonia. Primary working hours: 09:00–18:00 
 
 ## Contact
 
-- Website: https://novaflow.ai
-- Email: hello@novaflow.ai
+- Website: https://example.com
+- Email: hello@example.com
 - Demo booking: via this AI Sales Agent.

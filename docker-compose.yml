@@ -5,7 +5,7 @@ x-backend-env: &backend-env
   REDIS_URL: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD required}@redis:6379/0
   QDRANT_URL: http://qdrant:6333
   QDRANT_API_KEY: ${QDRANT_API_KEY:?QDRANT_API_KEY required}
-  QDRANT_COLLECTION_NAME: novaflow_kb
+  QDRANT_COLLECTION_NAME: sales_agent_kb
   OPENAI_API_KEY: ${OPENAI_API_KEY:-}
   LLM_PROVIDER: ${LLM_PROVIDER:-mock}
   EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-keyword}

@@ -1,6 +1,6 @@
 # Master Checklist Audit — AI Sales Agent
 
-**Project:** NovaFlow AI Sales Agent  
+**Project:** AI Sales Agent  
 **Audit date:** 2026-08-16  
 **Assessment unit:** every checklist section is marked only `PASS`, `PARTIAL`, `FAIL` or `N/A`. `PASS` requires all material items in that section to be evidenced, not merely some implementation.
 
